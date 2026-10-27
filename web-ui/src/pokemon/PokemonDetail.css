@@ -3,6 +3,7 @@
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
+  position: relative;
 }
 .pokemon-detail h2,
 .pokemon-detail h3 {
@@ -21,4 +22,16 @@
   border: 0;
   padding: 0;
   text-transform: capitalize;
+}
+.pokemon-tag {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  background-color: white;
+  color: black;
+  font-size: 0.5rem;
+  font-weight: 500;
+  line-height: 2;
+  padding: 0rem 0.2rem;
+  border-radius: 0.25rem;
 }

@@ -1,0 +1,77 @@
+-- SQL Prisma 7 sends for src/pokemon/pokemon.service.ts.
+-- Logged from this project with the PostgreSQL adapter.
+-- list() never touches PostgreSQL. It only calls PokéAPI.
+-- $1, $2, ... are query parameters. Example values are in the comments.
+
+-- ---------------------------------------------------------------------------
+-- findStoredPokemon
+-- prisma.pokemon.findFirst with types and abilities ordered by name.
+-- Three statements. The two relation queries are independent, so their
+-- order can vary. A numeric argument uses pokeapiId. Any other value uses name.
+-- ---------------------------------------------------------------------------
+
+-- By name. Parameters: $1 = 'pikachu', $2 = 1, $3 = 0
+SELECT "public"."Pokemon"."id", "public"."Pokemon"."name", "public"."Pokemon"."pokeapiId", "public"."Pokemon"."imageUrl", "public"."Pokemon"."source"::text, "public"."Pokemon"."createdAt", "public"."Pokemon"."updatedAt"
+FROM "public"."Pokemon"
+WHERE "public"."Pokemon"."name" = $1
+LIMIT $2 OFFSET $3;
+
+-- By PokéAPI id. Parameters: $1 = 25, $2 = 1, $3 = 0
+SELECT "public"."Pokemon"."id", "public"."Pokemon"."name", "public"."Pokemon"."pokeapiId", "public"."Pokemon"."imageUrl", "public"."Pokemon"."source"::text, "public"."Pokemon"."createdAt", "public"."Pokemon"."updatedAt"
+FROM "public"."Pokemon"
+WHERE "public"."Pokemon"."pokeapiId" = $1
+LIMIT $2 OFFSET $3;
+
+-- Types for the Pokémon id found above. Parameters: $1 = that id, $2 = 0
+SELECT "public"."PokemonType"."id", "public"."PokemonType"."name", "public"."PokemonType"."pokemonId"
+FROM "public"."PokemonType"
+WHERE "public"."PokemonType"."pokemonId" IN ($1)
+ORDER BY "public"."PokemonType"."name" ASC
+OFFSET $2;
+
+-- Abilities for the same id. Parameters: $1 = that id, $2 = 0
+SELECT "public"."PokemonAbility"."id", "public"."PokemonAbility"."name", "public"."PokemonAbility"."pokemonId"
+FROM "public"."PokemonAbility"
+WHERE "public"."PokemonAbility"."pokemonId" IN ($1)
+ORDER BY "public"."PokemonAbility"."name" ASC
+OFFSET $2;
+
+-- When the first SELECT finds no row, Prisma still sends the two relation
+-- queries. Their IN list is NULL instead of an id:
+--   WHERE "public"."PokemonType"."pokemonId" IN (NULL)
+--   WHERE "public"."PokemonAbility"."pokemonId" IN (NULL)
+
+-- ---------------------------------------------------------------------------
+-- savePokeApiDetail
+-- prisma.pokemon.create with nested types and abilities.
+-- Prisma runs the writes in a transaction and records COMMIT at the end.
+-- A duplicate name or pokeapiId makes PostgreSQL raise a unique violation.
+-- The service catches that as Prisma error P2002 and does not write again.
+-- These statements do not use ON CONFLICT.
+-- ---------------------------------------------------------------------------
+
+-- Parameters: $1 = 'pikachu', $2 = 25, $3 = image url or null,
+-- $4 = 'POKEAPI', $5 = createdAt, $6 = updatedAt
+INSERT INTO "public"."Pokemon" ("name", "pokeapiId", "imageUrl", "source", "createdAt", "updatedAt")
+VALUES ($1, $2, $3, CAST($4::text AS "public"."PokemonSource"), $5, $6)
+RETURNING "public"."Pokemon"."id";
+
+-- One related row also returns its id.
+-- Parameters: $1 = 'electric', $2 = the Pokémon id from RETURNING
+INSERT INTO "public"."PokemonType" ("name", "pokemonId")
+VALUES ($1, $2)
+RETURNING "public"."PokemonType"."id";
+
+-- Several related rows are one INSERT and do not use RETURNING.
+-- Parameters: $1 = 'static', $2 = pokemon id, $3 = 'lightning-rod', $4 = pokemon id
+INSERT INTO "public"."PokemonAbility" ("name", "pokemonId")
+VALUES ($1, $2), ($3, $4);
+
+-- Prisma then reads the parent row back. create() returns that row.
+-- Parameters: $1 = the new Pokémon id, $2 = 1, $3 = 0
+SELECT "public"."Pokemon"."id", "public"."Pokemon"."name", "public"."Pokemon"."pokeapiId", "public"."Pokemon"."imageUrl", "public"."Pokemon"."source"::text, "public"."Pokemon"."createdAt", "public"."Pokemon"."updatedAt"
+FROM "public"."Pokemon"
+WHERE "public"."Pokemon"."id" = $1
+LIMIT $2 OFFSET $3;
+
+COMMIT;

@@ -5,6 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import axios from 'axios';
 
 export interface PokemonSummary {
@@ -23,6 +25,7 @@ export interface PokemonDetail {
   types: string[];
   abilities: string[];
   imageUrl: string | null;
+  cached?: boolean;
 }
 
 const POKEMON_API_URL = 'https://pokeapi.co/api/v2/pokemon';
@@ -33,6 +36,8 @@ const POKEMON_NAME_PATTERN = /^[a-z0-9-]+$/;
 
 @Injectable()
 export class PokemonService {
+  constructor(private readonly prisma: PrismaService) {}
+
   /**
    * Loads one page of Pokémon from PokéAPI.
    * Raw query strings are normalized here so a request cannot ask for an unbounded page.
@@ -92,20 +97,30 @@ export class PokemonService {
     if (!POKEMON_NAME_PATTERN.test(sanitizedName)) {
       throw new BadRequestException('Invalid Pokémon name');
     }
+
+    const storedPokemon = await this.findStoredPokemon(sanitizedName);
+    if (storedPokemon) {
+      return storedPokemon;
+    }
+
+    let pokemonDetail: PokemonDetail;
     try {
-      const response = await axios.get<PokemonDetail>(
+      const response = await axios.get<unknown>(
         `${POKEMON_API_URL}/${sanitizedName}`,
         {
           timeout: REQUEST_TIMEOUT_MS,
         },
       );
-      return this.toPokemonDetail(response.data);
+      pokemonDetail = this.toPokemonDetail(response.data);
     } catch (error) {
       this.rethrowPokeApiError(
         error,
         `Pokémon "${sanitizedName}" was not found`,
       );
     }
+
+    await this.savePokeApiDetail(pokemonDetail);
+    return pokemonDetail;
   }
   /** Keeps the fields our app shows and rejects a payload that does not contain them. */
   private toPokemonDetail(payload: unknown): PokemonDetail {
@@ -152,6 +167,60 @@ export class PokemonService {
       throw new NotFoundException(notFoundMessage);
     }
     throw new BadGatewayException('PokéAPI is unavailable', { cause: error });
+  }
+
+  /** A numeric segment is a PokéAPI id. Any other accepted value is a name. */
+  private async findStoredPokemon(
+    nameOrId: string,
+  ): Promise<PokemonDetail | null> {
+    const isPokeapiId = /^[0-9]+$/.test(nameOrId);
+    const pokemon = await this.prisma.pokemon.findFirst({
+      where: isPokeapiId ? { pokeapiId: Number(nameOrId) } : { name: nameOrId },
+      include: {
+        types: { orderBy: { name: 'asc' } },
+        abilities: { orderBy: { name: 'asc' } },
+      },
+    });
+
+    if (!pokemon) {
+      return null;
+    }
+
+    return {
+      id: pokemon.pokeapiId ?? pokemon.id,
+      name: pokemon.name,
+      types: pokemon.types.map((type) => type.name),
+      abilities: pokemon.abilities.map((ability) => ability.name),
+      imageUrl: pokemon.imageUrl,
+      cached: pokemon.source !== 'CUSTOM',
+    };
+  }
+
+  /**
+   * Stores one PokéAPI Pokémon and its related rows.
+   * A unique-name conflict means another request stored it first.
+   */
+  private async savePokeApiDetail(detail: PokemonDetail): Promise<void> {
+    try {
+      await this.prisma.pokemon.create({
+        data: {
+          name: detail.name,
+          pokeapiId: detail.id,
+          imageUrl: detail.imageUrl,
+          source: 'POKEAPI',
+          types: { create: detail.types.map((name) => ({ name })) },
+          abilities: { create: detail.abilities.map((name) => ({ name })) },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return;
+      }
+      throw error;
+    }
   }
 }
 

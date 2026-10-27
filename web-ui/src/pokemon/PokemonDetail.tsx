@@ -13,6 +13,7 @@ interface PokemonDetailData {
   types: string[];
   abilities: string[];
   imageUrl: string | null;
+  cached?: boolean;
 }
 
 export default function PokemonDetail({ name }: PokemonDetailProps) {
@@ -68,6 +69,7 @@ export default function PokemonDetail({ name }: PokemonDetailProps) {
   return (
     <article className="pokemon-detail">
       <h2>{pokemonDetail.name}</h2>
+      {pokemonDetail.cached ? <p className="pokemon-tag">Cached</p> : null}
       {pokemonDetail.imageUrl ? (
         <img src={pokemonDetail.imageUrl} alt="" width="160" height="160" />
       ) : (
