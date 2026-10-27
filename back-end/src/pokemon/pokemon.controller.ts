@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Body } from '@nestjs/common';
 import { PokemonService } from './pokemon.service.js';
+import { CreatePokemonDto } from './dto/create-pokemon.dto.js';
 
 @Controller('pokemon')
 export class PokemonController {
@@ -16,5 +17,10 @@ export class PokemonController {
   @Get(':name')
   findOneByName(@Param('name') name: string) {
     return this.pokemonService.findByName(name);
+  }
+
+  @Post()
+  create(@Body() body: CreatePokemonDto) {
+    return this.pokemonService.create(body);
   }
 }

@@ -4,6 +4,7 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -26,6 +27,7 @@ export interface PokemonDetail {
   abilities: string[];
   imageUrl: string | null;
   cached?: boolean;
+  source?: 'POKEAPI' | 'CUSTOM';
 }
 
 const POKEMON_API_URL = 'https://pokeapi.co/api/v2/pokemon';
@@ -122,6 +124,7 @@ export class PokemonService {
     await this.savePokeApiDetail(pokemonDetail);
     return pokemonDetail;
   }
+
   /** Keeps the fields our app shows and rejects a payload that does not contain them. */
   private toPokemonDetail(payload: unknown): PokemonDetail {
     if (!isRecord(payload)) {
@@ -186,14 +189,7 @@ export class PokemonService {
       return null;
     }
 
-    return {
-      id: pokemon.pokeapiId ?? pokemon.id,
-      name: pokemon.name,
-      types: pokemon.types.map((type) => type.name),
-      abilities: pokemon.abilities.map((ability) => ability.name),
-      imageUrl: pokemon.imageUrl,
-      cached: pokemon.source !== 'CUSTOM',
-    };
+    return this.toStoredDetail(pokemon);
   }
 
   /**
@@ -221,6 +217,88 @@ export class PokemonService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Stores a user-created Pokémon.
+   * The name is normalized again here so a caller that bypasses the HTTP pipe still follows the same rule.
+   */
+  async create(input: {
+    name: string;
+    types: string[];
+    abilities: string[];
+    imageUrl?: string | null;
+  }): Promise<PokemonDetail> {
+    const name = input.name.trim().toLowerCase();
+    if (!POKEMON_NAME_PATTERN.test(name)) {
+      throw new BadRequestException('Invalid Pokémon name');
+    }
+    try {
+      const created = await this.prisma.pokemon.create({
+        data: {
+          name,
+          pokeapiId: null,
+          imageUrl: input.imageUrl ?? null,
+          source: 'CUSTOM',
+          types: {
+            create: this.normalizeNameList(input.types).map((typeName) => ({
+              name: typeName,
+            })),
+          },
+          abilities: {
+            create: this.normalizeNameList(input.abilities).map(
+              (abilityName) => ({ name: abilityName }),
+            ),
+          },
+        },
+        include: {
+          types: { orderBy: { name: 'asc' } },
+          abilities: { orderBy: { name: 'asc' } },
+        },
+      });
+      return this.toStoredDetail(created);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(`Pokémon "${name}" already exists`);
+      }
+      throw error;
+    }
+  }
+
+  private toStoredDetail(pokemon: {
+    id: number;
+    name: string;
+    pokeapiId: number | null;
+    imageUrl: string | null;
+    source: 'POKEAPI' | 'CUSTOM';
+    types: { name: string }[];
+    abilities: { name: string }[];
+  }): PokemonDetail {
+    return {
+      id: pokemon.pokeapiId ?? pokemon.id,
+      name: pokemon.name,
+      types: pokemon.types.map((type) => type.name),
+      abilities: pokemon.abilities.map((ability) => ability.name),
+      imageUrl: pokemon.imageUrl,
+      cached: pokemon.source === 'POKEAPI',
+      source: pokemon.source,
+    };
+  }
+
+  /** Accepts one to three names and rejects anything the database should not store. */
+  private normalizeNameList(values: string[]): string[] {
+    const names = values.map((value) => value.trim().toLowerCase());
+    if (
+      names.length < 1 ||
+      names.length > 3 ||
+      names.some((entry) => !POKEMON_NAME_PATTERN.test(entry))
+    ) {
+      throw new BadRequestException('Invalid Pokémon type or ability');
+    }
+    return names;
   }
 }
 

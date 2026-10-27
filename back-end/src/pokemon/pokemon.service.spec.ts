@@ -2,18 +2,21 @@ import {
   BadGatewayException,
   BadRequestException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { PokemonService } from './pokemon.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 function createPrismaStub(
   findFirst: () => Promise<unknown> = async () => null,
+  create: () => Promise<unknown> = async () => ({}),
 ) {
   return {
     pokemon: {
       findFirst: vi.fn(findFirst),
-      create: vi.fn(async () => ({})),
+      create: vi.fn(create),
     },
   } as unknown as PrismaService;
 }
@@ -132,11 +135,72 @@ describe('PokemonService', () => {
       id: 1,
       name: 'bulbasaur',
       types: ['grass', 'poison'],
+      source: 'POKEAPI',
       abilities: ['overgrow', 'chlorophyll'],
       imageUrl: 'https://example.test/art.png',
       cached: true,
     });
     expect(get).not.toHaveBeenCalled();
     expect(prisma.pokemon.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a custom Pokémon without calling PokéAPI', async () => {
+    const prisma = createPrismaStub(
+      async () => null,
+      async () => ({
+        id: 30,
+        name: 'mossy',
+        pokeapiId: null,
+        imageUrl: null,
+        source: 'CUSTOM',
+        types: [{ name: 'grass' }],
+        abilities: [{ name: 'overgrow' }],
+      }),
+    );
+    const get = vi.spyOn(axios, 'get');
+    const detail = await new PokemonService(prisma).create({
+      name: 'Mossy',
+      types: ['Grass'],
+      abilities: ['Overgrow'],
+    });
+    expect(get).not.toHaveBeenCalled();
+    expect(detail).toEqual({
+      id: 30,
+      name: 'mossy',
+      types: ['grass'],
+      abilities: ['overgrow'],
+      imageUrl: null,
+      cached: false,
+      source: 'CUSTOM',
+    });
+    expect(prisma.pokemon.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'mossy',
+          pokeapiId: null,
+          source: 'CUSTOM',
+        }),
+      }),
+    );
+  });
+
+  it('reports a conflict when the Pokémon name already exists', async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      { code: 'P2002', clientVersion: 'test' },
+    );
+    const prisma = createPrismaStub(
+      async () => null,
+      async () => {
+        throw conflict;
+      },
+    );
+    await expect(
+      new PokemonService(prisma).create({
+        name: 'bulbasaur',
+        types: ['grass'],
+        abilities: ['overgrow'],
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });
