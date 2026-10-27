@@ -1,0 +1,77 @@
+-- Equivalent of prisma/schema.prisma on PostgreSQL.
+-- Prisma generated this same SQL for the init migration.
+-- Run it against an empty database if you want the tables without Prisma.
+
+-- enum PokemonSource { POKEAPI CUSTOM }
+CREATE TYPE "PokemonSource" AS ENUM ('POKEAPI', 'CUSTOM');
+
+-- model Pokemon
+--   id        Int      @id @default(autoincrement())  -> SERIAL
+--   name      String   @unique
+--   pokeapiId Int?     @unique                        -> INTEGER, NULL allowed
+--   imageUrl  String?
+--   source    PokemonSource                          -> NOT NULL, no default
+--   createdAt DateTime @default(now())
+--   updatedAt DateTime @updatedAt
+CREATE TABLE "Pokemon" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "pokeapiId" INTEGER,
+    "imageUrl" TEXT,
+    "source" "PokemonSource" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Pokemon_pkey" PRIMARY KEY ("id")
+);
+
+-- model PokemonType
+--   pokemon Pokemon @relation(..., onDelete: Cascade)
+--   @@unique([pokemonId, name])
+--   @@index([name])
+CREATE TABLE "PokemonType" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "pokemonId" INTEGER NOT NULL,
+
+    CONSTRAINT "PokemonType_pkey" PRIMARY KEY ("id")
+);
+
+-- model PokemonAbility
+--   same shape as PokemonType
+CREATE TABLE "PokemonAbility" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "pokemonId" INTEGER NOT NULL,
+
+    CONSTRAINT "PokemonAbility_pkey" PRIMARY KEY ("id")
+);
+
+-- @unique on Pokemon.name and Pokemon.pokeapiId
+CREATE UNIQUE INDEX "Pokemon_name_key" ON "Pokemon"("name");
+CREATE UNIQUE INDEX "Pokemon_pokeapiId_key" ON "Pokemon"("pokeapiId");
+
+-- @@index([name]) and @@unique([pokemonId, name])
+CREATE INDEX "PokemonType_name_idx" ON "PokemonType"("name");
+CREATE UNIQUE INDEX "PokemonType_pokemonId_name_key" ON "PokemonType"("pokemonId", "name");
+
+CREATE INDEX "PokemonAbility_name_idx" ON "PokemonAbility"("name");
+CREATE UNIQUE INDEX "PokemonAbility_pokemonId_name_key" ON "PokemonAbility"("pokemonId", "name");
+
+-- onDelete: Cascade. Prisma also adds ON UPDATE CASCADE.
+ALTER TABLE "PokemonType"
+    ADD CONSTRAINT "PokemonType_pokemonId_fkey"
+    FOREIGN KEY ("pokemonId") REFERENCES "Pokemon"("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE;
+
+ALTER TABLE "PokemonAbility"
+    ADD CONSTRAINT "PokemonAbility_pokemonId_fkey"
+    FOREIGN KEY ("pokemonId") REFERENCES "Pokemon"("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE;
+
+-- @updatedAt is not a database rule.
+-- The column above is only "NOT NULL".
+-- Prisma writes the new timestamp from the application on every update.
+-- PostgreSQL would need a trigger to do that by itself. Prisma does not create one.
