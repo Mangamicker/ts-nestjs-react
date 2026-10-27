@@ -33,3 +33,14 @@
 .pokemon-pager button:disabled {
   opacity: 0.5;
 }
+.pokemon-name {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.pokemon-name[aria-pressed="true"] {
+  color: var(--accent);
+}

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import PokemonDetail from "./PokemonDetail";
+import { API_BASE_URL } from "./api";
+
 import "./PokemonList.css";
 
 interface PokemonSummary {
@@ -12,7 +15,6 @@ interface PokemonPage {
   results: PokemonSummary[];
 }
 
-const API_BASE_URL = "http://localhost:3000";
 const PAGE_SIZE = 20;
 
 export default function PokemonList() {
@@ -20,6 +22,7 @@ export default function PokemonList() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
 
   /**
    * Load the page for the current offset.
@@ -99,6 +102,11 @@ export default function PokemonList() {
           Next
         </button>
       </div>
+      {selectedName ? (
+        <PokemonDetail key={selectedName} name={selectedName} />
+      ) : (
+        <p className="pokemon-status">Select a Pokémon to see its details.</p>
+      )}
       {isLoading ? (
         <p className="pokemon-status">Loading Pokémon…</p>
       ) : error ? (
@@ -112,7 +120,16 @@ export default function PokemonList() {
           </p>
           <ul>
             {page?.results.map((pokemon) => (
-              <li key={pokemon.name}>{pokemon.name}</li>
+              <li key={pokemon.name}>
+                <button
+                  type="button"
+                  className="pokemon-name"
+                  aria-pressed={pokemon.name === selectedName}
+                  onClick={() => setSelectedName(pokemon.name)}
+                >
+                  {pokemon.name}
+                </button>
+              </li>
             ))}
           </ul>
         </>
