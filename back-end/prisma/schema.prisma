@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PokemonSource {
+  POKEAPI
+  CUSTOM
+}
+model Pokemon {
+  id         Int              @id @default(autoincrement())
+  name       String           @unique
+  pokeapiId  Int?             @unique
+  imageUrl   String?
+  source     PokemonSource
+  types      PokemonType[]
+  abilities  PokemonAbility[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+model PokemonType {
+  id        Int     @id @default(autoincrement())
+  name      String
+  pokemonId Int
+  pokemon   Pokemon @relation(fields: [pokemonId], references: [id], onDelete: Cascade)
+  @@unique([pokemonId, name])
+  @@index([name])
+}
+model PokemonAbility {
+  id        Int     @id @default(autoincrement())
+  name      String
+  pokemonId Int
+  pokemon   Pokemon @relation(fields: [pokemonId], references: [id], onDelete: Cascade)
+  @@unique([pokemonId, name])
+  @@index([name])
+}
