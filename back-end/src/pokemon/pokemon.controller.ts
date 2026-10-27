@@ -14,6 +14,11 @@ export class PokemonController {
     return this.pokemonService.list(limit, offset);
   }
 
+  @Get('custom')
+  listCustom() {
+    return this.pokemonService.listCustom();
+  }
+
   @Get(':name')
   findOneByName(@Param('name') name: string) {
     return this.pokemonService.findByName(name);

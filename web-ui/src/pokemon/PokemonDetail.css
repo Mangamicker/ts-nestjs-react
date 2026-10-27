@@ -35,3 +35,7 @@
   padding: 0rem 0.2rem;
   border-radius: 0.25rem;
 }
+
+img {
+  object-fit: contain;
+}

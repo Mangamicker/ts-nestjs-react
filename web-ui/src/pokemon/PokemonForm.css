@@ -1,0 +1,24 @@
+.pokemon-form {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1rem 0;
+}
+
+.pokemon-form h2,
+.pokemon-form label {
+  color: var(--text-h);
+}
+
+.pokemon-form input,
+.pokemon-form button {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+}
+
+.pokemon-form button {
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--code-bg);
+  color: var(--text-h);
+}

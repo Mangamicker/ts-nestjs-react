@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import PokemonDetail from "./PokemonDetail";
+import PokemonForm from "./PokemonForm";
 import { API_BASE_URL } from "./api";
 
 import "./PokemonList.css";
@@ -23,6 +24,7 @@ export default function PokemonList() {
   const [isLoading, setIsLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [customNames, setCustomNames] = useState<string[]>([]);
 
   /**
    * Load the page for the current offset.
@@ -62,6 +64,37 @@ export default function PokemonList() {
     };
   }, [offset]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadCustomPokemon() {
+      try {
+        const response = await axios.get<{ name: string }[]>(
+          `${API_BASE_URL}/pokemon/custom`,
+          { signal: controller.signal },
+        );
+        setCustomNames(response.data.map((pokemon) => pokemon.name));
+      } catch (requestError) {
+        if (!axios.isCancel(requestError)) {
+          setCustomNames([]);
+        }
+      }
+    }
+    void loadCustomPokemon();
+    return () => controller.abort();
+  }, []);
+
+  function handleCreated(name: string) {
+    setCustomNames((current) => {
+      if (current.includes(name)) {
+        return current;
+      }
+      return [...current, name].sort((left, right) =>
+        left.localeCompare(right),
+      );
+    });
+    setSelectedName(name);
+  }
+
   const handlePrevious = () => {
     if (isLoading || isFirstPage) return;
     setIsLoading(true);
@@ -86,6 +119,26 @@ export default function PokemonList() {
   return (
     <section className="pokemon-page">
       <h1>Pokémon</h1>
+      <PokemonForm onCreated={handleCreated} />
+      <h2>Your Pokémon</h2>
+      {customNames.length === 0 ? (
+        <p>No custom Pokémon yet.</p>
+      ) : (
+        <ul>
+          {customNames.map((pokemonName) => (
+            <li key={pokemonName}>
+              <button
+                type="button"
+                className="pokemon-name"
+                aria-pressed={pokemonName === selectedName}
+                onClick={() => setSelectedName(pokemonName)}
+              >
+                {pokemonName}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="pokemon-pager">
         <button
           type="button"

@@ -8,15 +8,18 @@ import axios, { AxiosError } from 'axios';
 import { PokemonService } from './pokemon.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { DEFAULT_IMAGE_URL } from './pokemon.service.js';
 
 function createPrismaStub(
   findFirst: () => Promise<unknown> = async () => null,
   create: () => Promise<unknown> = async () => ({}),
+  findMany: () => Promise<unknown> = async () => [],
 ) {
   return {
     pokemon: {
       findFirst: vi.fn(findFirst),
       create: vi.fn(create),
+      findMany: vi.fn(findMany),
     },
   } as unknown as PrismaService;
 }
@@ -169,7 +172,7 @@ describe('PokemonService', () => {
       name: 'mossy',
       types: ['grass'],
       abilities: ['overgrow'],
-      imageUrl: null,
+      imageUrl: DEFAULT_IMAGE_URL,
       cached: false,
       source: 'CUSTOM',
     });
@@ -202,5 +205,21 @@ describe('PokemonService', () => {
         abilities: ['overgrow'],
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('lists custom Pokémon from the database', async () => {
+    const prisma = createPrismaStub(
+      async () => null,
+      async () => ({}),
+      async () => [{ name: 'mossy' }],
+    );
+    await expect(new PokemonService(prisma).listCustom()).resolves.toEqual([
+      { name: 'mossy', source: 'CUSTOM' },
+    ]);
+    expect(prisma.pokemon.findMany).toHaveBeenCalledWith({
+      where: { source: 'CUSTOM' },
+      orderBy: { name: 'asc' },
+      select: { name: true },
+    });
   });
 });

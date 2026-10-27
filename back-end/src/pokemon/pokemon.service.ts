@@ -35,6 +35,8 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const REQUEST_TIMEOUT_MS = 5000;
 const POKEMON_NAME_PATTERN = /^[a-z0-9-]+$/;
+export const DEFAULT_IMAGE_URL =
+  'https://static.wikia.nocookie.net/loquendocity/images/b/bf/Oak.png/revision/latest?cb=20250521084903&path-prefix=es';
 
 @Injectable()
 export class PokemonService {
@@ -282,7 +284,7 @@ export class PokemonService {
       name: pokemon.name,
       types: pokemon.types.map((type) => type.name),
       abilities: pokemon.abilities.map((ability) => ability.name),
-      imageUrl: pokemon.imageUrl,
+      imageUrl: pokemon.imageUrl?.trim() ? pokemon.imageUrl : DEFAULT_IMAGE_URL,
       cached: pokemon.source === 'POKEAPI',
       source: pokemon.source,
     };
@@ -299,6 +301,16 @@ export class PokemonService {
       throw new BadRequestException('Invalid Pokémon type or ability');
     }
     return names;
+  }
+
+  /** Returns every user-created name. This set is small enough to load in one query. */
+  async listCustom(): Promise<{ name: string; source: 'CUSTOM' }[]> {
+    const rows = await this.prisma.pokemon.findMany({
+      where: { source: 'CUSTOM' },
+      orderBy: { name: 'asc' },
+      select: { name: true },
+    });
+    return rows.map((row) => ({ name: row.name, source: 'CUSTOM' }));
   }
 }
 
