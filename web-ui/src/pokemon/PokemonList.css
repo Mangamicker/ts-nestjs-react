@@ -1,0 +1,18 @@
+.pokemon-page {
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+.pokemon-page h1,
+.pokemon-status {
+  color: var(--text-h);
+}
+.pokemon-page ul {
+  padding: 0;
+  list-style: none;
+}
+.pokemon-page li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  text-transform: capitalize;
+}
