@@ -22,14 +22,13 @@ export default function PokemonList() {
   const [offset, setOffset] = useState(0);
 
   /**
-   * Load the first page after React has painted this component.
-   * Aborting the request covers React StrictMode, which runs this effect twice in development.
+   * Load the page for the current offset.
+   * Aborting the previous request covers a fast page change and React StrictMode.
    */
   useEffect(() => {
     const controller = new AbortController();
     const fetchPokemon = async () => {
       try {
-        console.log("fetching pokemon", offset);
         const response = await axios.get<PokemonPage>(
           `${API_BASE_URL}/pokemon`,
           {

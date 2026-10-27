@@ -1,5 +1,9 @@
-import { BadGatewayException } from '@nestjs/common';
-import axios from 'axios';
+import {
+  BadGatewayException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import axios, { AxiosError } from 'axios';
 import { PokemonService } from './pokemon.service.js';
 
 describe('PokemonService', () => {
@@ -42,5 +46,57 @@ describe('PokemonService', () => {
     await expect(new PokemonService().list()).rejects.toBeInstanceOf(
       BadGatewayException,
     );
+  });
+
+  it('returns the fields needed for a detail view', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({
+      data: {
+        id: 1,
+        name: 'bulbasaur',
+        height: 7,
+        types: [{ type: { name: 'grass' } }, { type: { name: 'poison' } }],
+        abilities: [
+          { ability: { name: 'overgrow' } },
+          { ability: { name: 'chlorophyll' } },
+        ],
+        sprites: {
+          front_default: 'https://example.test/front.png',
+          other: {
+            'official-artwork': {
+              front_default: 'https://example.test/art.png',
+            },
+          },
+        },
+      },
+    } as Awaited<ReturnType<typeof axios.get>>);
+    const detail = await new PokemonService().findByName('Bulbasaur');
+    expect(detail).toEqual({
+      id: 1,
+      name: 'bulbasaur',
+      types: ['grass', 'poison'],
+      abilities: ['overgrow', 'chlorophyll'],
+      imageUrl: 'https://example.test/art.png',
+    });
+    expect(axios.get).toHaveBeenCalledWith(
+      'https://pokeapi.co/api/v2/pokemon/bulbasaur',
+      expect.objectContaining({ timeout: 5000 }),
+    );
+  });
+
+  it('rejects an invalid name before calling PokéAPI', async () => {
+    const get = vi.spyOn(axios, 'get');
+    await expect(
+      new PokemonService().findByName('bad name'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('returns not found when PokéAPI has no such Pokémon', async () => {
+    const notFound = new AxiosError('not found');
+    notFound.response = { status: 404 } as typeof notFound.response;
+    vi.spyOn(axios, 'get').mockRejectedValue(notFound);
+    await expect(
+      new PokemonService().findByName('missingno'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

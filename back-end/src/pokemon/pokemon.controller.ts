@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { PokemonService } from './pokemon.service.js';
 
 @Controller('pokemon')
@@ -11,5 +11,10 @@ export class PokemonController {
   @Get()
   list(@Query('limit') limit?: string, @Query('offset') offset?: string) {
     return this.pokemonService.list(limit, offset);
+  }
+
+  @Get(':name')
+  findOneByName(@Param('name') name: string) {
+    return this.pokemonService.findByName(name);
   }
 }
